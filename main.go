@@ -24,6 +24,9 @@ func main() {
 	}
 	defer repo.Close()
 
+	// Get database reference for new services
+	db := repo.Database()
+
 	// Initialize Kafka producer
 	producer, err := kafka.NewProducer(cfg.KafkaBrokers)
 	if err != nil {
@@ -31,14 +34,34 @@ func main() {
 	}
 	defer producer.Close()
 
-	// Initialize service
+	// ── Initialize Core Service ──
 	reminderService := service.NewReminderService(repo, producer)
 
-	// Initialize scheduler
+	// ── Initialize Extended Services ──
+	tagService := service.NewTagService(db)
+	templateService := service.NewTemplateService(db)
+	notificationService := service.NewNotificationService(db)
+	sharingService := service.NewSharingService(db)
+	noteService := service.NewNoteService(db)
+	activityService := service.NewActivityService(db)
+	analyticsService := service.NewAnalyticsService(repo, db)
+	searchService := service.NewSearchService(db)
+	exportService := service.NewExportService(repo, db)
+	priorityService := service.NewPriorityService(db)
+	subtaskService := service.NewSubtaskService(db)
+	calendarService := service.NewCalendarService(db)
+	escalationService := service.NewEscalationService(db)
+	categoryService := service.NewCategoryService(db)
+	delegationService := service.NewDelegationService(db)
+	recurringService := service.NewRecurringService(db)
+	timezoneService := service.NewTimezoneService(db)
+	habitService := service.NewHabitService(db)
+
+	// ── Initialize Scheduler ──
 	reminderScheduler := scheduler.NewScheduler(reminderService, producer)
 	go reminderScheduler.Start()
 
-	// Initialize Kafka consumer
+	// ── Initialize Kafka Consumer ──
 	consumer, err := kafka.NewConsumer(cfg.KafkaBrokers, "reminder-service", reminderService)
 	if err != nil {
 		log.Printf("Warning: Failed to connect Kafka consumer: %v", err)
@@ -47,13 +70,48 @@ func main() {
 		defer consumer.Close()
 	}
 
-	// Setup HTTP server
+	// ── Initialize Handlers ──
+	tagHandler := api.NewTagHandler(tagService)
+	templateHandler := api.NewTemplateHandler(templateService, reminderService)
+	notifHandler := api.NewNotificationHandler(notificationService)
+	sharingHandler := api.NewSharingHandler(sharingService)
+	noteHandler := api.NewNoteHandler(noteService)
+	analyticsHandler := api.NewAnalyticsHandler(analyticsService, searchService, activityService, exportService, reminderService)
+	priorityHandler := api.NewPriorityHandler(priorityService)
+	subtaskHandler := api.NewSubtaskHandler(subtaskService)
+	calendarHandler := api.NewCalendarHandler(calendarService)
+	escalationHandler := api.NewEscalationHandler(escalationService)
+	categoryHandler := api.NewCategoryHandler(categoryService)
+	delegationHandler := api.NewDelegationHandler(delegationService)
+	recurringHandler := api.NewRecurringHandler(recurringService)
+	timezoneHandler := api.NewTimezoneHandler(timezoneService)
+	habitHandler := api.NewHabitHandler(habitService)
+
+	// ── Setup HTTP Server ──
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	router := gin.Default()
-	api.RegisterRoutes(router, reminderService)
+	api.RegisterRoutes(
+		router,
+		reminderService,
+		tagHandler,
+		templateHandler,
+		notifHandler,
+		sharingHandler,
+		noteHandler,
+		analyticsHandler,
+		priorityHandler,
+		subtaskHandler,
+		calendarHandler,
+		escalationHandler,
+		categoryHandler,
+		delegationHandler,
+		recurringHandler,
+		timezoneHandler,
+		habitHandler,
+	)
 
 	port := cfg.Port
 	log.Printf("Reminder service starting on port %s", port)
