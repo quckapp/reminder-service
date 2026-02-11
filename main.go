@@ -56,6 +56,7 @@ func main() {
 	recurringService := service.NewRecurringService(db)
 	timezoneService := service.NewTimezoneService(db)
 	habitService := service.NewHabitService(db)
+	extended2Service := service.NewExtended2Service(db)
 
 	// ── Initialize Scheduler ──
 	reminderScheduler := scheduler.NewScheduler(reminderService, producer)
@@ -86,6 +87,7 @@ func main() {
 	recurringHandler := api.NewRecurringHandler(recurringService)
 	timezoneHandler := api.NewTimezoneHandler(timezoneService)
 	habitHandler := api.NewHabitHandler(habitService)
+	ext2Handler := api.NewExtended2Handler(extended2Service)
 
 	// ── Setup HTTP Server ──
 	if os.Getenv("GIN_MODE") == "" {
@@ -111,6 +113,7 @@ func main() {
 		recurringHandler,
 		timezoneHandler,
 		habitHandler,
+		ext2Handler,
 	)
 
 	port := cfg.Port

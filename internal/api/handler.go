@@ -32,6 +32,7 @@ func RegisterRoutes(
 	recurringHandler *RecurringHandler,
 	timezoneHandler *TimezoneHandler,
 	habitHandler *HabitHandler,
+	ext2Handler *Extended2Handler,
 ) {
 	h := &Handler{service: svc}
 
@@ -171,6 +172,62 @@ func RegisterRoutes(
 		api.POST("/habits/:id/reset-streak", habitHandler.ResetStreak)
 		api.GET("/users/:user_id/habits", habitHandler.ListHabits)
 		api.GET("/users/:user_id/habits/summary", habitHandler.GetSummary)
+
+		// -- Reminder Attachments --
+		api.POST("/reminders/:id/attachments", ext2Handler.AddAttachment)
+		api.GET("/reminders/:id/attachments", ext2Handler.ListAttachments)
+		api.DELETE("/reminders/:id/attachments/:attachmentId", ext2Handler.DeleteAttachment)
+
+		// -- Reminder Comments --
+		api.POST("/reminders/:id/comments", ext2Handler.AddComment)
+		api.GET("/reminders/:id/comments", ext2Handler.ListComments)
+		api.PUT("/reminders/comments/:commentId", ext2Handler.UpdateComment)
+		api.DELETE("/reminders/comments/:commentId", ext2Handler.DeleteComment)
+
+		// -- Reminder Reactions --
+		api.POST("/reminders/:id/reactions", ext2Handler.AddReaction)
+		api.DELETE("/reminders/:id/reactions", ext2Handler.RemoveReaction)
+		api.GET("/reminders/:id/reactions", ext2Handler.ListReactions)
+
+		// -- Reminder Watchers --
+		api.POST("/reminders/:id/watchers", ext2Handler.AddWatcher)
+		api.DELETE("/reminders/:id/watchers", ext2Handler.RemoveWatcher)
+		api.GET("/reminders/:id/watchers", ext2Handler.ListWatchers)
+
+		// -- Reminder Labels --
+		api.POST("/reminders/:id/labels", ext2Handler.AddLabel)
+		api.DELETE("/reminders/:id/labels/:label", ext2Handler.RemoveLabel)
+		api.GET("/reminders/:id/labels", ext2Handler.ListLabels)
+		api.GET("/labels/:label/reminders", ext2Handler.SearchByLabel)
+
+		// -- Reminder Favorites --
+		api.POST("/reminders/:id/favorite", ext2Handler.AddFavorite)
+		api.DELETE("/reminders/:id/favorite", ext2Handler.RemoveFavorite)
+		api.GET("/users/:user_id/favorite-reminders", ext2Handler.ListFavorites)
+		api.GET("/reminders/:id/favorited", ext2Handler.IsFavorited)
+
+		// -- Reminder Dependencies --
+		api.POST("/reminders/:id/dependencies", ext2Handler.AddDependency)
+		api.DELETE("/reminders/:id/dependencies/:depId", ext2Handler.RemoveDependency)
+		api.GET("/reminders/:id/dependencies", ext2Handler.ListDependencies)
+
+		// -- Reminder Locations --
+		api.PUT("/reminders/:id/location", ext2Handler.SetLocation)
+		api.GET("/reminders/:id/location", ext2Handler.GetLocation)
+		api.DELETE("/reminders/:id/location", ext2Handler.RemoveLocation)
+		api.GET("/reminders/nearby", ext2Handler.ListNearby)
+
+		// -- Snooze History --
+		api.GET("/reminders/:id/snooze-history", ext2Handler.ListSnoozeHistory)
+
+		// -- Quick Actions --
+		api.POST("/quick-actions", ext2Handler.CreateQuickAction)
+		api.GET("/quick-actions", ext2Handler.ListQuickActions)
+		api.DELETE("/quick-actions/:actionId", ext2Handler.DeleteQuickAction)
+
+		// -- Extended Stats --
+		api.GET("/users/:user_id/completion-rate", ext2Handler.GetCompletionRate)
+		api.GET("/users/:user_id/streak", ext2Handler.GetStreakInfo)
 	}
 }
 
