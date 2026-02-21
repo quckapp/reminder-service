@@ -6,19 +6,23 @@ import (
 	"log"
 
 	"reminder-service/internal/models"
-	"reminder-service/internal/service"
 
 	"github.com/IBM/sarama"
 )
 
+// ReminderHandler defines the interface for handling reminder commands from Kafka.
+type ReminderHandler interface {
+	Cancel(ctx context.Context, id string) error
+}
+
 type Consumer struct {
 	consumer sarama.ConsumerGroup
-	service  *service.ReminderService
+	service  ReminderHandler
 	topics   []string
 	ready    chan bool
 }
 
-func NewConsumer(brokers []string, groupID string, svc *service.ReminderService) (*Consumer, error) {
+func NewConsumer(brokers []string, groupID string, svc ReminderHandler) (*Consumer, error) {
 	config := sarama.NewConfig()
 	config.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRoundRobin()
 	config.Consumer.Offsets.Initial = sarama.OffsetNewest
