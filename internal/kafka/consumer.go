@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 
+	"reminder-service/internal/interfaces"
 	"reminder-service/internal/models"
 
 	"github.com/IBM/sarama"
@@ -33,10 +34,10 @@ func NewConsumer(brokers []string, groupID string, svc ReminderHandler) (*Consum
 	}
 
 	return &Consumer{
-		consumer: consumer,
-		service:  svc,
-		topics:   []string{"reminders.commands"},
-		ready:    make(chan bool),
+		consumer:  consumer,
+		canceller: canceller,
+		topics:    []string{"reminders.commands"},
+		ready:     make(chan bool),
 	}, nil
 }
 
@@ -107,7 +108,7 @@ func (c *Consumer) handleCancel(ctx context.Context, event map[string]any) {
 		return
 	}
 
-	if err := c.service.Cancel(ctx, reminderID); err != nil {
+	if err := c.canceller.Cancel(ctx, reminderID); err != nil {
 		log.Printf("Error canceling reminder: %v", err)
 	}
 }

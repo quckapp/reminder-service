@@ -1,0 +1,1 @@
+import sys; content = sys.stdin.read(); exec(content)

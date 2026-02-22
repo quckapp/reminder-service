@@ -5,17 +5,21 @@ import (
 	"fmt"
 	"time"
 
-	"reminder-service/internal/kafka"
 	"reminder-service/internal/models"
 	"reminder-service/internal/repository"
 )
 
-type ReminderService struct {
-	repo     repository.Repository
-	producer *kafka.Producer
+// EventPublisher interface for publishing events
+type EventPublisher interface {
+	Publish(topic string, message interface{}) error
 }
 
-func NewReminderService(repo repository.Repository, producer *kafka.Producer) *ReminderService {
+type ReminderService struct {
+	repo     repository.Repository
+	producer EventPublisher
+}
+
+func NewReminderService(repo repository.Repository, producer EventPublisher) *ReminderService {
 	return &ReminderService{
 		repo:     repo,
 		producer: producer,
@@ -215,4 +219,150 @@ func calculateNextOccurrence(current time.Time, recurrence *models.Recurrence) t
 
 func (s *ReminderService) GetPendingReminders(ctx context.Context, before time.Time) ([]*models.Reminder, error) {
 	return s.repo.GetPendingReminders(ctx, before)
+}
+
+// ── Paginated Queries ──
+
+func (s *ReminderService) GetByUserIDPaginated(ctx context.Context, userID string, status *models.ReminderStatus, page *models.PaginationParams) (*models.PaginatedResponse, error) {
+	page.Validate()
+	reminders, total, err := s.repo.GetByUserIDPaginated(ctx, userID, status, page.Skip(), page.Limit())
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = int((total + page.Limit() - 1) / page.Limit())
+	}
+
+	return &models.PaginatedResponse{
+		Data:       reminders,
+		Total:      total,
+		Page:       page.Page,
+		PerPage:    page.PerPage,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (s *ReminderService) GetByChannelID(ctx context.Context, channelID string, page *models.PaginationParams) (*models.PaginatedResponse, error) {
+	page.Validate()
+	reminders, total, err := s.repo.GetByChannelID(ctx, channelID, page.Skip(), page.Limit())
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = int((total + page.Limit() - 1) / page.Limit())
+	}
+
+	return &models.PaginatedResponse{
+		Data:       reminders,
+		Total:      total,
+		Page:       page.Page,
+		PerPage:    page.PerPage,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (s *ReminderService) GetByWorkspaceID(ctx context.Context, workspaceID string, status *models.ReminderStatus, page *models.PaginationParams) (*models.PaginatedResponse, error) {
+	page.Validate()
+	reminders, total, err := s.repo.GetByWorkspaceID(ctx, workspaceID, status, page.Skip(), page.Limit())
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = int((total + page.Limit() - 1) / page.Limit())
+	}
+
+	return &models.PaginatedResponse{
+		Data:       reminders,
+		Total:      total,
+		Page:       page.Page,
+		PerPage:    page.PerPage,
+		TotalPages: totalPages,
+	}, nil
+}
+
+// ── Stats ──
+
+func (s *ReminderService) GetStats(ctx context.Context, userID string) (*models.ReminderStats, error) {
+	return s.repo.GetStats(ctx, userID)
+}
+
+// ── Complete ──
+
+func (s *ReminderService) Complete(ctx context.Context, id string) error {
+	reminder, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repo.UpdateStatus(ctx, id, models.StatusCompleted); err != nil {
+		return fmt.Errorf("failed to complete reminder: %w", err)
+	}
+
+	s.producer.Publish("reminders.completed", map[string]any{
+		"reminder_id": id,
+		"user_id":     reminder.UserID,
+	})
+
+	return nil
+}
+
+// ── Bulk Operations ──
+
+func (s *ReminderService) BulkCreate(ctx context.Context, reqs []models.CreateReminderRequest) *models.BulkActionResponse {
+	resp := &models.BulkActionResponse{}
+	for _, req := range reqs {
+		reqCopy := req
+		_, err := s.Create(ctx, &reqCopy)
+		if err != nil {
+			resp.Failed++
+			resp.Errors = append(resp.Errors, fmt.Sprintf("%s: %s", req.Title, err.Error()))
+		} else {
+			resp.Successful++
+		}
+	}
+	return resp
+}
+
+func (s *ReminderService) BulkCancel(ctx context.Context, ids []string) *models.BulkActionResponse {
+	resp := &models.BulkActionResponse{}
+	count, err := s.repo.BulkUpdateStatus(ctx, ids, models.StatusCancelled)
+	if err != nil {
+		resp.Failed = len(ids)
+		resp.Errors = append(resp.Errors, err.Error())
+	} else {
+		resp.Successful = int(count)
+		resp.Failed = len(ids) - int(count)
+	}
+
+	s.producer.Publish("reminders.bulk_cancelled", map[string]any{
+		"ids":       ids,
+		"cancelled": count,
+	})
+
+	return resp
+}
+
+func (s *ReminderService) BulkDelete(ctx context.Context, ids []string) *models.BulkActionResponse {
+	resp := &models.BulkActionResponse{}
+	count, err := s.repo.BulkDelete(ctx, ids)
+	if err != nil {
+		resp.Failed = len(ids)
+		resp.Errors = append(resp.Errors, err.Error())
+	} else {
+		resp.Successful = int(count)
+		resp.Failed = len(ids) - int(count)
+	}
+
+	s.producer.Publish("reminders.bulk_deleted", map[string]any{
+		"ids":     ids,
+		"deleted": count,
+	})
+
+	return resp
 }
